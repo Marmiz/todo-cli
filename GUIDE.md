@@ -287,7 +287,13 @@ Let's add the following conde inside our `impl` block:
 
 impl Todo {
     fn new() -> Result<Todo, std::io::Error> {
-        let content = std::fs::read_to_string("db.txt")?;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .read(true)
+            .open("db.txt")?;
+        let mut content = String::new();
+        f.read_to_string(&mut content)?;
 
         let map: HashMap<String, bool> = content
             .lines()
@@ -308,7 +314,10 @@ Let's see what is happening here:
 
 - We are defining a `new` function that will return a Result that is either a `Todo` struct or an `io:Error`.
 
-- We are reading the content of the `db.txt` file into a string.
+- We configure how to open `db.txt` file by defining vrious [OpenOptions](https://doc.rust-lang.org/std/fs/struct.OpenOptions.html). Most notably is the `create(true)` flag that will create the file if it's not already.
+
+- `f.read_to_string(&mut content)?` reads all the bytes in the file and append them into the `content` String.
+> note: remeber to add `use std::io::Read;` at the top of the file along with the other use statements in order to use the `read_to_string` method.
 
 - `let map: HashMap<String, bool>`: we are binding to the map variable an `HashMap`, here is one of the occasion where the compiler have trouble interfering the type for us, so we declare it ourself.
 
@@ -323,6 +332,7 @@ Let's see what is happening here:
 - `.map(|v| (v[0], v[1]))` then we transform it into a touple for convenience.
 
 - `.map(|(k, v)| (String::from(k), bool::from_str(v).unwrap()))` then we convert the two elements of the tuple into a `String` using `String::from` and into a `bool` using `bool::from_str`.
+> note: remeber to add `use std::str::FromStr;` at the top of the file along with the other use statement in order to be able to use the `from_str` method.
 
 - We collect them into our HashMap. Rust knows what to do since we declared explicitly the type we want to have when we made our bindig.
 
@@ -335,7 +345,15 @@ Let's see what is happening here:
 The above could have also been implemented with a `for` loop instead:
 ```rust
 fn new() -> Result<Todo, std::io::Error> {
-    let content = std::fs::read_to_string("db.txt")?;
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .read(true)
+        .open("db.txt")?;
+    let mut content = String::new();
+
+    f.read_to_string(&mut content)?;
+
     let mut map = HashMap::new();
 
     for entries in content.lines() {
@@ -349,6 +367,8 @@ fn new() -> Result<Todo, std::io::Error> {
     Ok(Todo { map })
 }
 ```
+Although map is generally considered more ideomatic, feel free to use the one you like the most.
+
 ---
 
 ### Using the new function
@@ -378,5 +398,82 @@ make coffee     true
 make pancakes   true
 ```
 
+## 4. Updating a value in the collection
 
+### Complete method
 
+As in all the TODO app out there, we want to be able to not only add itmes, but to toggle them as well and mark them as completed.
+
+To do so let's add a new method to our struct called complete where we take a reference to a key, and update the value, or return `None` if the key is not present, so that we can inform the user.
+
+```rust
+fn complete(&mut self, key: &String) -> Option<()> {
+    match self.map.get_mut(key) {
+        Some(v) => Some(*v = false),
+        None => None,
+    }
+}
+```
+
+- We are returning the value matched by the `match` statement which will either be an empty `Some()` on a `None`.
+
+- `get_mut` [[doc]](https://doc.rust-lang.org/std/collections/struct.HashMap.html#method.get_mut) will give us the mutable reference to the value of key, or None.
+
+- we are using the `*` [[doc]](https://doc.rust-lang.org/book/appendix-02-operators.html) operator to dereference the value and set it to `false`.
+
+### Using the complete method
+
+We can use this new method in a similar fashion as we used the insert before.
+In `main` let's chech that the action is "complete" by using a familiar `else if` statemet:
+
+```rust
+if action == "add" {
+    // add action
+} else if action == "complete" {
+    match todo.complete(&item) {
+        None => println!("'{}' is not present in the list", item),
+        Some(_) => match todo.save() {
+            Ok(_) => println!("todo saved"),
+            Err(why) => println!("An error occurred: {}", why),
+        },
+    }
+}
+```
+
+- We match the Option returned by `todo.complete`.
+
+- If the case is None we print a warning to the user for a better experience.
+> note: The reason we passed the item as a reference with `&item` to the method is so that we could have still used it for our `println!` macro. Otherwise the value would have been owned by the complete method and dropped there.
+
+- If we detect that `Some` value has returned, we call `todo.save` much like in the add action to store it permanently into our file.
+
+## 5. Try this all out
+
+It's time we try this functionality a bit in our terminal.
+Let's start by removing our `db.txt` file to start fresh.
+
+```console
+$ rm db.txt
+```
+
+Let's add a couple of todos
+```console
+$ cargo run -- add "make coffee"
+
+$ cargo run -- add "code rust"
+
+$ cargo run -- complete "make coffee"
+
+$ cat db.txt
+make coffee     false
+code rust       true
+```
+
+Let's say we want to make coffe again:
+```console
+$ cargo run -- add "make coffee"
+
+$ cat db.txt
+make coffee     true
+code rust       true
+```

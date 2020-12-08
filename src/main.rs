@@ -1,6 +1,6 @@
 use std::collections::HashMap;
+use std::io::Read;
 use std::str::FromStr;
-use std::io::prelude::*;
 
 fn main() {
     let action = std::env::args().nth(1).expect("Please provide an action");
@@ -14,6 +14,14 @@ fn main() {
             Ok(_) => println!("todo saved"),
             Err(why) => println!("An error occurred: {}", why),
         }
+    } else if action == "complete" {
+        match todo.complete(&item) {
+            None => println!("'{}' is not present in the list", item),
+            Some(_) => match todo.save() {
+                Ok(_) => println!("todo saved"),
+                Err(why) => println!("An error occurred: {}", why),
+            },
+        }
     }
 }
 
@@ -24,16 +32,18 @@ struct Todo {
 
 impl Todo {
     fn new() -> Result<Todo, std::io::Error> {
-        let mut f = std::fs::OpenOptions::new().write(true).create(true).read(true).open("db.txt")?;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .read(true)
+            .open("db.txt")?;
         let mut content = String::new();
 
         f.read_to_string(&mut content)?;
 
-        // let content = std::fs::read_to_string("db.txt")?;
-
         let map: HashMap<String, bool> = content
             .lines()
-            .map(|line| line.splitn(2,'\t').collect::<Vec<&str>>())
+            .map(|line| line.splitn(2, '\t').collect::<Vec<&str>>())
             .map(|v| (v[0], v[1]))
             .map(|(k, v)| (String::from(k), bool::from_str(v).unwrap()))
             .collect();
@@ -54,6 +64,13 @@ impl Todo {
         }
 
         std::fs::write("db.txt", content)
+    }
+
+    fn complete(&mut self, key: &String) -> Option<()> {
+        match self.map.get_mut(key) {
+            Some(v) => Some(*v = false),
+            None => None,
+        }
     }
 }
 
