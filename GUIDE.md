@@ -477,3 +477,81 @@ $ cat db.txt
 make coffee     true
 code rust       true
 ```
+## 6. Bonus: Save it as JSON with Serde
+
+### Add serde
+The program, even if minimal, is running. But let's give it a bit of twist.
+Coming from the Javascript world I have decided that instead of a plain text file, I want to store my values as a JSON file.
+
+We are gonna take this opportunity to see how install and use package from the Rust open source communuty: [crates.io](https://crates.io/).
+We wil rely on one of the most widley used Rust library: [serde](https://crates.io/crates/serde).
+
+To install a new package into our project simply open the `cargo.toml` file, at the bottom you should see a `[dependencies]` field: simply add the following to the file:
+```toml
+[dependencies]
+serde_json = "1.0.60"
+```
+
+And that's it. The next time cargo will compile our program will also compile and include the new package along.
+
+### Updating Todo::new
+The first place where we want to use serde is when we read the db file. Now we want to read a JSON file instead.
+
+```rust
+// inside Todo impl block
+fn new() -> Result<Todo, std::io::Error> {
+    let f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .read(true)
+        .open("db.json")?;
+
+    match serde_json::from_reader(f) {
+        Ok(map) => Ok(Todo { map }),
+        Err(e) if e.is_eof() => Ok(Todo {
+            map: HashMap::new(),
+        }),
+        Err(e) => panic!("An error occurred: {}", e),
+    }
+}
+```
+The notable changes are: 
+
+- no more `mut f` binding, as we don't really need to manually allocate the content into a String. Serde will take care of it.
+
+- we renamed our file as `db.json`.
+
+- `serde_json::from_reader` [[doc]](https://docs.serde.rs/serde_json/fn.from_reader.html) will deserialize the file for us. It interfere the return type of map as the HashMap and will attemt to convert our json into a compatible HashMap. If all goes well we return our `Todo` struct as before.
+
+- `Err(e) if e.is_eof()` is a [Match guard](https://doc.rust-lang.org/reference/expressions/match-expr.html#match-guards) that let us refine the behavior. If serde return as an error a premature EOF (end of file), means that the file is totally empty (for example on the very first run). In that case we recover from the error and return a `Todo` with an empty map.
+
+- For all the other errors exit the program immediately.
+
+### Updating save.
+The other place where we want to use serde is when we save our map as a JSON.
+To do so update the `save` method in the impl block to be:
+
+```rust
+// inside Todo impl block
+fn save(self) -> Result<(), Box<dyn std::error::Error>> {
+    let f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open("db.json")?;
+    serde_json::to_writer_pretty(f, &self.map)?;
+
+    Ok(())
+}
+```
+- `Box<dyn std::error::Error>`. This time we return a `Box` [[doc]](https://doc.rust-lang.org/std/boxed/index.html) containing Rust generic error implementation. A box is pointer to an allocation in memory. Since we may return either a file system error when opening the file, or a serde error when converting it, we don't really know which of the two our function may return. So we return a pointer to the possible error, instead of the error itself.
+
+- we of course have updated the file name to `db.json` to match.
+
+- finally we let serde do the heavy lifting and write our HashMap as JSON file (pretty printed).
+
+## Closing thoughts.
+
+[todo]
+
+
+
