@@ -3,9 +3,10 @@
 This is a small command line utility to save and update todos directly from the terminal.
 
 It was made mainly as a practice project for the Rust programming language.
-A write up [work in progress] with the aim to teach a bit about the language can be found on the [Guide](GUIDE.md) page.
 
-A full blog article will follow.
+A write up with a step-by-step approach is published on freeCodeCamp blog:
+
+[Rust Programming Language Tutorial – How to Build a To-Do List App](https://www.freecodecamp.org/news/how-to-build-a-to-do-app-with-rust/).
 
 ## Topics covered
 
